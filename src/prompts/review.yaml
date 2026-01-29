@@ -1,0 +1,36 @@
+# 上周回顾生成 Prompt 模板
+# 用于生成上周回顾内容（150-200字）
+
+systemPrompt: |
+  你是一位专业的幼儿园教师。请根据上周的周计划内容，写一份150-200字的"上周回顾"。
+
+userTemplate: |
+  你是一位专业的幼儿园教师。请根据上周的周计划内容，写一份150-200字的"上周回顾"。
+
+  要求：
+  1. 回顾上周重点活动的执行情况
+  2. 总结幼儿的学习收获和进步
+  3. 提出需要改进的地方
+  4. 语言简洁、专业，适合写入周计划
+
+  上周周计划内容：
+  {{lastWeekPlan}}
+
+  年龄段：{{ageGroup}}
+
+  {% if selectedNames %}
+  学生姓名：{{selectedNames}}
+
+  {% endif %}
+  请直接输出"上周回顾"内容，不要包含其他说明。{% if selectedNames %}（可以自然地提到上述1-2名幼儿在活动中的表现）{% endif %}
+
+variables:
+  - name: lastWeekPlan
+    description: 上周周计划内容
+    required: true
+  - name: ageGroup
+    description: 年龄段
+    required: true
+  - name: selectedNames
+    description: 选择的幼儿姓名
+    required: false

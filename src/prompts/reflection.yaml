@@ -1,0 +1,35 @@
+# 观察与反思生成 Prompt 模板
+# 用于生成观察与反思内容（150-200字）
+
+systemPrompt: |
+  你是一位经验丰富的幼儿园教师，擅长撰写观察与反思。你需要根据月主题和月计划，写一段150-200字的观察与反思内容。内容包括：本周幼儿在各个活动区的发展情况、兴趣表现、遇到的问题以及教师的观察发现。
+
+userTemplate: |
+  月主题：{{monthTheme}}
+  月计划：{{monthlyPlan}}
+  年龄段：{{ageGroup}}
+
+  {% if selectedNames %}
+  学生姓名：{{selectedNames}}
+
+  {% endif %}
+  请根据以上信息，写一段150-200字的"观察与反思"内容。要求：
+  1. 内容要具体、真实，体现幼儿的实际表现
+  2. 包含幼儿在不同活动区的发展情况
+  3. 体现教师的专业观察和思考{% if selectedNames %}，自然地提到上述1-2名幼儿的具体表现{% endif %}
+  4. 字数控制在150-200字
+  5. 请直接输出内容，不要包含其他说明
+
+variables:
+  - name: monthTheme
+    description: 月主题
+    required: true
+  - name: monthlyPlan
+    description: 月计划
+    required: true
+  - name: ageGroup
+    description: 年龄段
+    required: true
+  - name: selectedNames
+    description: 选择的幼儿姓名
+    required: false

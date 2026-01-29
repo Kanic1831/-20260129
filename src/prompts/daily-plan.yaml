@@ -1,0 +1,78 @@
+# 日计划生成 Prompt 模板
+# 用于根据集体活动名称生成详细的日计划内容
+
+systemPrompt: |
+  你是一位专业的幼儿园教师，擅长制定日计划。你需要根据集体活动名称，生成详细的日计划内容。返回必须是严格的JSON格式。
+
+userTemplate: |
+  班级：{{classInfo}}
+  教师：{{teacher}}
+  日期：{{date}}
+  活动名称：{{activityName}}
+
+  {% if weekNumber %}
+  第{{weekNumber}}周
+
+  {% endif %}
+  {% if knowledgeBaseInfo %}
+  {{knowledgeBaseInfo}}
+
+  {% endif %}
+  请根据以上信息，生成详细的日计划内容。包括：
+  - 早餐安排
+  - 晨间活动
+  - 集体活动（{{activityName}}的详细内容和步骤）
+  - 午餐安排
+  - 午休安排
+  - 午点安排
+  - 离园活动
+
+  要求：
+  1. 内容要具体、可操作
+  2. 时间安排要合理
+  3. 要符合幼儿年龄特点
+  4. 活动内容要有趣味性
+  5. 字数适当，不要过长
+  6. 返回严格的JSON格式，键名为：日期、早餐、晨间活动、集体活动、午餐、午休、午点、离园活动
+
+  返回JSON格式示例：
+  {
+    "日期": "5.6",
+    "早餐": "内容",
+    "晨间活动": "内容",
+    "集体活动": "内容",
+    "午餐": "内容",
+    "午休": "内容",
+    "午点": "内容",
+    "离园活动": "内容"
+  }
+
+fields:
+  - 日期
+  - 早餐
+  - 晨间活动
+  - 集体活动
+  - 午餐
+  - 午休
+  - 午点
+  - 离园活动
+
+variables:
+  - name: activityName
+    description: 活动名称
+    required: true
+  - name: classInfo
+    description: 班级信息
+    required: true
+  - name: teacher
+    description: 教师姓名
+    required: true
+  - name: date
+    description: 日期
+    required: true
+  - name: weekNumber
+    description: 周数
+    required: false
+  - name: knowledgeBaseInfo
+    description: 知识库信息
+    required: false
