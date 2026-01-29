@@ -1,4 +1,5 @@
 import { S3Storage } from 'coze-coding-dev-sdk';
+import { toErrorMessage } from '@/lib/error-utils';
 
 /**
  * 存储服务接口
@@ -41,10 +42,19 @@ export class StorageService implements IStorageService {
 
     if (!this.isLocalMode) {
       // 只有在生产环境（配置了云存储）时才初始化 S3Storage
+      const accessKey =
+        process.env.COZE_BUCKET_ACCESS_KEY ||
+        process.env.COZE_BUCKET_ACCESS_KEY_ID ||
+        '';
+      const secretKey =
+        process.env.COZE_BUCKET_SECRET_KEY ||
+        process.env.COZE_BUCKET_SECRET_ACCESS_KEY ||
+        '';
+
       this.storage = new S3Storage({
         endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL || '',
-        accessKey: '',
-        secretKey: '',
+        accessKey,
+        secretKey,
         bucketName: process.env.COZE_BUCKET_NAME || '',
         region: 'cn-beijing',
       });
@@ -92,9 +102,9 @@ export class StorageService implements IStorageService {
 
       console.log('文件上传成功，签名URL:', url);
       return url;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('上传文件到对象存储失败:', error);
-      throw new Error(`上传文件失败: ${error.message}`);
+      throw new Error(`上传文件失败: ${toErrorMessage(error)}`);
     }
   }
 
@@ -111,9 +121,9 @@ export class StorageService implements IStorageService {
         expireTime: expiresIn,
       });
       return url;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('生成签名 URL 失败:', error);
-      throw new Error(`生成签名 URL 失败: ${error.message}`);
+      throw new Error(`生成签名 URL 失败: ${toErrorMessage(error)}`);
     }
   }
 
@@ -128,9 +138,9 @@ export class StorageService implements IStorageService {
       // 暂时注释掉，因为不确定是否有 deleteFile 方法
       // await this.storage.deleteFile({ key: key });
       console.log('文件删除成功（模拟）:', key);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('删除文件失败:', error);
-      throw new Error(`删除文件失败: ${error.message}`);
+      throw new Error(`删除文件失败: ${toErrorMessage(error)}`);
     }
   }
 }

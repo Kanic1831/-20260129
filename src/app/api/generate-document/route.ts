@@ -3,7 +3,9 @@ import { limiter } from '@/lib/concurrency-control';
 import { validateWordFile } from '@/lib/file-validation';
 import { createDocumentService } from '@/services/DocumentService';
 import { createStorageService } from '@/services/StorageService';
-import { WeeklyPlanAISchema } from '@/core/schemas/plan.schema';
+import { JSONUtils } from '@/lib/json-utils';
+import { WeeklyPlanDocData, WeeklyPlanDocSchema, WeeklyPlanAI } from '@/core/schemas/plan.schema';
+import { toErrorMessage, toErrorStatus } from '@/lib/error-utils';
 import { z } from 'zod';
 
 /**
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
 
       // 4. 解析 AI 数据 - 只验证 JSON 格式，不验证业务规范
       // AI 生成的内容是不可预测的，严格验证会导致大量失败
-      let aiData: any;
+      let aiData: unknown;
       try {
         console.log('=== AI 数据处理日志 ===');
         console.log('AI 返回的原始数据:', JSON.stringify(aiDataStr, null, 2).substring(0, 1000));
@@ -94,7 +96,12 @@ export async function POST(req: NextRequest) {
         // 只做 JSON 解析，不做 Schema 验证
         aiData = JSON.parse(aiDataStr);
         console.log('JSON 解析成功');
-        console.log('解析后的集体活动字段:', aiData.集体活动?.substring(0, 300));
+        if (typeof aiData === 'object' && aiData !== null && '集体活动' in aiData) {
+          const collective = (aiData as Record<string, unknown>).集体活动;
+          if (typeof collective === 'string') {
+            console.log('解析后的集体活动字段:', collective.substring(0, 300));
+          }
+        }
 
         // 不再验证 Schema - AI 输出不可预测，验证只会导致失败
         // 只要 JSON 能解析，就直接使用
@@ -111,83 +118,63 @@ export async function POST(req: NextRequest) {
       const storageService = createStorageService();
 
       // 6. 准备模板数据和提取活动列表
-      const processedAiData = { ...aiData };
-
-      // 统一处理换行符：将所有字符串字段中的 \\n 替换为实际换行符
-      const processField = (value: any): any => {
-        if (typeof value === 'string') {
-          // 将转义的换行符 \\n 替换为实际的换行符 \n
-          const processed = value.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-          if (value.includes('\\n')) {
-            console.log(`  - 发现转义换行符，处理前长度: ${value.length}, 处理后长度: ${processed.length}`);
-          }
-          return processed;
-        }
-        return value;
-      };
-
-      // 处理所有字段
-      for (const key in processedAiData) {
-        processedAiData[key] = processField(processedAiData[key]);
+      if (typeof aiData !== 'object' || aiData === null) {
+        return NextResponse.json(
+          { error: 'AI 数据格式错误，请重新生成' },
+          { status: 400 }
+        );
       }
+
+      const processedAiData = JSONUtils.processNewlines(aiData) as Partial<WeeklyPlanAI>;
 
       console.log('处理后的集体活动字段:', processedAiData.集体活动?.substring(0, 300));
 
-      // 防御性处理：将单个活动内部的换行符替换为空格（确保每个活动在一行内）
-      // 针对包含多条内容的字段：集体活动、学习区、运动区、公共区域等
+      // 清理多条内容字段（确保每条内容独立成行）
       const multiLineFields = ['集体活动', '学习区', '运动区', '公共区域', '班级区域', '过渡环节'];
-      for (const fieldName of multiLineFields) {
-        if (processedAiData[fieldName] && typeof processedAiData[fieldName] === 'string') {
-          const originalValue = processedAiData[fieldName];
-          console.log(`处理前 ${fieldName}:`, originalValue.substring(0, 200));
-
-          // 按行分割（按数字编号开头的模式分割）
-          // 使用正则表达式匹配 "数字." 或 "数字、" 作为行分隔符
-          const lines = originalValue.split(/(?<=\d+[.、])/).map((line: string) => {
-            // 去除首尾空格
-            return line.trim();
-          }).filter((line: string) => line.length > 0);
-
-          // 对每一行，将其内部的多个空格、换行符合并为单个空格
-          const processedLines = lines.map((line: string) => {
-            // 将行内的多个空白字符（包括空格、制表符、换行等）替换为单个空格
-            return line.replace(/\s+/g, ' ').trim();
-          });
-
-          // 重新组合，每行之间用 \n 分隔
-          processedAiData[fieldName] = processedLines.join('\n');
-          console.log(`处理后 ${fieldName}:`, processedAiData[fieldName].substring(0, 200));
-        }
-      }
+      const finalAiData = JSONUtils.cleanMultiLineFields(processedAiData as Record<string, unknown>, multiLineFields) as Partial<WeeklyPlanAI>;
 
       // 确保可选字段有默认值（避免 Word 模板渲染失败）
-      if (!processedAiData.周回顾) {
-        processedAiData.周回顾 = '';
+      if (!finalAiData.周回顾) {
+        finalAiData.周回顾 = '';
       }
-      if (!processedAiData.观察与反思) {
-        processedAiData.观察与反思 = '';
+      if (!finalAiData.观察与反思) {
+        finalAiData.观察与反思 = '';
       }
 
       // 提取集体活动列表（用于日计划生成）
       let activities: string[] = [];
-      const collectiveActivities = processedAiData.集体活动;
+      const collectiveActivities = finalAiData.集体活动;
 
       if (collectiveActivities) {
-        // 按行分割并提取活动
         const lines = collectiveActivities.split('\n').filter((line: string) => line.trim());
         activities = lines;
       }
 
-      const templateData = {
+      const templateData: WeeklyPlanDocData = {
         班级: classInfo,
         第几周: weekNumber,
         教师: teacher,
         日期: dateRange,
         本月主题: monthTheme,
-        年龄段: ageGroup === 'small' ? '3~4岁' : ageGroup === 'medium' ? '4~5岁' : '5~6岁',
         上周回顾: '',
-        ...processedAiData,
+        儿童议会: typeof finalAiData.儿童议会 === 'string' ? finalAiData.儿童议会 : '',
+        公共区域: typeof finalAiData.公共区域 === 'string' ? finalAiData.公共区域 : '',
+        反思与调整: typeof finalAiData.反思与调整 === 'string' ? finalAiData.反思与调整 : '',
+        学习区: typeof finalAiData.学习区 === 'string' ? finalAiData.学习区 : '',
+        家园共育: typeof finalAiData.家园共育 === 'string' ? finalAiData.家园共育 : '',
+        本周主题: typeof finalAiData.本周主题 === 'string' ? finalAiData.本周主题 : '',
+        本周目标: typeof finalAiData.本周目标 === 'string' ? finalAiData.本周目标 : '',
+        环境创设: typeof finalAiData.环境创设 === 'string' ? finalAiData.环境创设 : '',
+        班级区域: typeof finalAiData.班级区域 === 'string' ? finalAiData.班级区域 : '',
+        自主签到: typeof finalAiData.自主签到 === 'string' ? finalAiData.自主签到 : '',
+        资源利用: typeof finalAiData.资源利用 === 'string' ? finalAiData.资源利用 : '',
+        过渡环节: typeof finalAiData.过渡环节 === 'string' ? finalAiData.过渡环节 : '',
+        运动区: typeof finalAiData.运动区 === 'string' ? finalAiData.运动区 : '',
+        集体活动: typeof finalAiData.集体活动 === 'string' ? finalAiData.集体活动 : '',
+        餐点进餐: typeof finalAiData.餐点进餐 === 'string' ? finalAiData.餐点进餐 : '',
       };
+
+      WeeklyPlanDocSchema.parse(templateData);
 
       console.log('=== 传递给 Word 模板的数据 ===');
       console.log('集体活动字段:', templateData.集体活动?.substring(0, 300));
@@ -235,15 +222,15 @@ export async function POST(req: NextRequest) {
         ageGroup,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('生成文档失败:', error);
 
       // 返回用户友好的错误信息
-      const errorMessage = error.message || '生成文档失败，请重试';
+      const errorMessage = toErrorMessage(error, '生成文档失败，请重试');
 
       return NextResponse.json(
         { error: errorMessage },
-        { status: error.status || 500 }
+        { status: toErrorStatus(error) }
       );
     }
   });

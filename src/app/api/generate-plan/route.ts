@@ -2,15 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { limiter } from '@/lib/concurrency-control';
 import { validateWordFile } from '@/lib/file-validation';
 import { createPlanService } from '@/services/PlanService';
+import { toErrorStatus } from '@/lib/error-utils';
 import { z } from 'zod';
 
 /**
  * 周计划生成请求 Schema
  */
 const GenerateWeeklyPlanRequestSchema = z.object({
-  file: z.any().optional(),
-  lastWeekFile: z.any().optional(),
-  studentNamesFile: z.any().optional(),
+  file: z.instanceof(File).optional(),
+  lastWeekFile: z.instanceof(File).optional(),
+  studentNamesFile: z.instanceof(File).optional(),
   monthTheme: z.string().min(1, '月主题不能为空'),
   monthlyPlan: z.string().optional(),
   useDefaultTemplate: z.boolean(),
@@ -107,15 +108,15 @@ export async function POST(req: NextRequest) {
         ageGroup: result.ageGroup,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('生成周计划失败:', error);
 
       // 返回用户友好的错误信息
-      const errorMessage = error.message || '生成周计划失败，请重试';
+      const errorMessage = error instanceof Error ? error.message : '生成周计划失败，请重试';
 
       return NextResponse.json(
         { error: errorMessage },
-        { status: error.status || 500 }
+        { status: toErrorStatus(error) }
       );
     }
   });

@@ -88,19 +88,63 @@ export type WeeklyPlan = z.infer<typeof WeeklyPlanSchema>;
 export type WeeklyPlanAI = z.infer<typeof WeeklyPlanAISchema>;
 
 /**
- * 日计划单个活动的 Schema
+ * 周计划文档模板 Schema（严格对应 Word 模板占位符）
  */
-export const DailyPlanActivitySchema = z.object({
-  日期: z.string().describe('日期，格式：月.日，如：5.6'),
-  活动名称: z.string().describe('活动名称'),
-  早餐: z.string().describe('早餐安排'),
-  晨间活动: z.string().describe('晨间活动安排'),
-  集体活动: z.string().describe('集体活动内容'),
-  午餐: z.string().describe('午餐安排'),
-  午休: z.string().describe('午休安排'),
-  午点: z.string().describe('午点安排'),
-  离园活动: z.string().describe('离园活动安排'),
+export const WeeklyPlanDocSchema = z.object({
+  班级: z.string(),
+  第几周: z.string(),
+  教师: z.string(),
+  日期: z.string(),
+  本月主题: z.string(),
+  上周回顾: z.string(),
+  儿童议会: z.string(),
+  公共区域: z.string(),
+  反思与调整: z.string(),
+  学习区: z.string(),
+  家园共育: z.string(),
+  本周主题: z.string(),
+  本周目标: z.string(),
+  环境创设: z.string(),
+  班级区域: z.string(),
+  自主签到: z.string(),
+  资源利用: z.string(),
+  过渡环节: z.string(),
+  运动区: z.string(),
+  集体活动: z.string(),
+  餐点进餐: z.string(),
 });
+
+export type WeeklyPlanDocData = z.infer<typeof WeeklyPlanDocSchema>;
+
+/**
+ * 日计划单个活动字段 Schema（基于模板占位符）
+ */
+const DailyPlanActivityFieldsSchema = z.object({
+  日期: z.string().describe('日期，格式：月.日，如：5.6'),
+  入园签到: z.string().describe('入园签到安排'),
+  学习区: z.string().describe('学习区活动安排'),
+  运动区: z.string().describe('运动区活动安排'),
+  公共区域: z.string().describe('公共区域活动安排'),
+  班级区域: z.string().describe('班级区域活动安排'),
+  过渡环节: z.string().describe('过渡环节安排'),
+  自主进餐: z.string().describe('自主进餐安排'),
+  午睡: z.string().describe('午睡安排'),
+  学习与发展: z.string().describe('学习与发展目标'),
+  活动组织: z.string().describe('活动组织流程'),
+  指导与调整: z.string().describe('教师指导与调整'),
+  观察与反思: z.string().describe('观察与反思'),
+  童言稚语: z.string().describe('童言稚语记录'),
+  经验梳理: z.string().describe('经验梳理'),
+  区域活动材料: z.string().describe('区域活动材料准备'),
+  集体活动材料: z.string().describe('集体活动材料准备'),
+  户外活动材料: z.string().describe('户外活动材料准备'),
+  保育与安全材料提供: z.string().describe('保育与安全材料提供'),
+});
+
+/**
+ * 日计划 AI 输出 Schema（字段可选，便于容错）
+ */
+export const DailyPlanActivitySchema = DailyPlanActivityFieldsSchema.partial();
 
 /**
  * 日计划完整 Schema
@@ -108,7 +152,7 @@ export const DailyPlanActivitySchema = z.object({
 export const DailyPlanSchema = z.object({
   班级: z.string().describe('班级名称'),
   教师: z.string().describe('教师姓名'),
-  ...DailyPlanActivitySchema.shape,
+  ...DailyPlanActivityFieldsSchema.shape,
 });
 
 export type DailyPlan = z.infer<typeof DailyPlanSchema>;

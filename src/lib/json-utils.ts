@@ -17,7 +17,7 @@ export class JSONUtils {
    * @returns 解析后的 JSON 对象
    * @throws {Error} 如果无法解析为有效的 JSON
    */
-  static repairAndParse(rawContent: string): any {
+  static repairAndParse(rawContent: string): unknown {
     // 步骤 1: 提取纯 JSON 对象
     const cleanedContent = this.extractJSON(rawContent);
 
@@ -29,21 +29,13 @@ export class JSONUtils {
       // 策略 1: 直接解析
       () => JSON.parse(basicCleaned),
 
-      // 策略 2: 修复 AI 常见的中文引号问题 (""xxx"" -> "xxx")
+      // 策略 2: 修复 AI 常见的中文/全角引号问题
       () => {
         const fixed = basicCleaned
           .replace(/""([^""]*)""/g, '"$1"')  // 中文双引号包裹 -> 普通引号
           .replace(/「([^」]*)」/g, '"$1"')   // 中文书名号 -> 普通引号
-          .replace(/"([^"]*)"/g, '"$1"');    // 中文引号 -> 普通引号
-        return JSON.parse(fixed);
-      },
-
-      // 策略 3: 移除所有非结构性引号
-      () => {
-        // 先将所有中文引号转换为空格，然后清理多余空格
-        const fixed = basicCleaned
-          .replace(/[""]/g, ' ')
-          .replace(/\s+/g, ' ');
+          .replace(/[“”]/g, '"')             // 中文双引号 -> 普通引号
+          .replace(/[‘’]/g, "'");            // 中文单引号 -> 半角单引号
         return JSON.parse(fixed);
       },
     ];
@@ -105,10 +97,9 @@ export class JSONUtils {
    * 处理所有字符串字段中的换行符
    * 将转义的换行符 \\n 替换为实际换行符 \n
    */
-  static processNewlines(data: any): any {
+  static processNewlines(data: unknown): unknown {
     if (typeof data === 'string') {
-      // 将转义的换行符 \\n 替换为实际的换行符 \n
-      return data.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+      return this.normalizeNewlines(data);
     }
 
     if (Array.isArray(data)) {
@@ -116,9 +107,10 @@ export class JSONUtils {
     }
 
     if (typeof data === 'object' && data !== null) {
-      const processed: Record<string, any> = {};
-      for (const key in data) {
-        processed[key] = this.processNewlines(data[key]);
+      const processed: Record<string, unknown> = {};
+      const record = data as Record<string, unknown>;
+      for (const [key, value] of Object.entries(record)) {
+        processed[key] = this.processNewlines(value);
       }
       return processed;
     }
@@ -127,9 +119,65 @@ export class JSONUtils {
   }
 
   /**
+   * 清理多条内容字段
+   * - 确保每条内容独立成行
+   * - 合并行内多余空白
+   */
+  static cleanMultiLineFields<T extends Record<string, unknown>>(
+    data: T,
+    fieldNames: string[]
+  ): T {
+    const result: Record<string, unknown> = { ...data };
+
+    for (const fieldName of fieldNames) {
+      const rawValue = result[fieldName];
+      if (typeof rawValue !== 'string') continue;
+
+      const normalized = this.normalizeNewlines(rawValue);
+      let lines: string[] = [];
+
+      if (normalized.includes('\n')) {
+        lines = normalized.split('\n');
+      } else {
+        lines = this.splitNumberedLines(normalized);
+      }
+
+      const processedLines = lines
+        .map((line) => line.replace(/\s+/g, ' ').trim())
+        .filter((line) => line.length > 0);
+
+      result[fieldName] = processedLines.join('\n');
+    }
+
+    return result as T;
+  }
+
+  /**
+   * 统一换行符（处理转义换行符与不同平台换行）
+   */
+  private static normalizeNewlines(value: string): string {
+    return value
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\n')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
+  }
+
+  /**
+   * 尝试按编号拆分（1. 2. 3. / 1、2、3、）
+   */
+  private static splitNumberedLines(text: string): string[] {
+    const marked = text.replace(/(^|[^\d])(\d{1,2}[.、])(?!\d)/g, (_match, prefix, marker) => {
+      return `${prefix}\n${marker}`;
+    });
+    return marked.split('\n');
+  }
+
+  /**
    * 格式化 JSON 对象为缩进字符串
    */
-  static stringify(data: any, space: number = 2): string {
+  static stringify(data: unknown, space: number = 2): string {
     try {
       return JSON.stringify(data, null, space);
     } catch (error) {

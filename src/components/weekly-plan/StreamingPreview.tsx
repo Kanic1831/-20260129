@@ -12,8 +12,13 @@ interface StreamingPreviewProps {
  */
 function formatContent(content: string | undefined): string {
     if (!content) return '';
-    // 将 \\n 转换为真正的换行符 \n
-    return content.replace(/\\n/g, '\n');
+    // 将转义的换行符转换为真正的换行符
+    return content
+        .replace(/\\\\r\\\\n/g, '\n')
+        .replace(/\\\\n/g, '\n')
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\n');
 }
 
 export function StreamingPreview({ streaming, preview }: StreamingPreviewProps) {

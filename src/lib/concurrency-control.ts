@@ -5,7 +5,7 @@
 export class ConcurrencyLimiter {
   private maxConcurrent: number;
   private running: number;
-  private queue: Array<() => Promise<any>>;
+  private queue: Array<() => void>;
 
   constructor(maxConcurrent: number = 5) {
     this.maxConcurrent = maxConcurrent;
@@ -16,8 +16,8 @@ export class ConcurrencyLimiter {
   async run<T>(task: () => Promise<T>): Promise<T> {
     if (this.running >= this.maxConcurrent) {
       // 等待直到有空闲槽位
-      await new Promise(resolve => {
-        this.queue.push(resolve as any);
+      await new Promise<void>(resolve => {
+        this.queue.push(resolve);
       });
     }
 

@@ -1,9 +1,10 @@
-import { DailyPlanActivitySchema } from '@/core/schemas/plan.schema';
+import { DailyPlanActivitySchema, DailyPlanSchema } from '@/core/schemas/plan.schema';
 import { IAIService } from './AIService';
 import { IDocumentService } from './DocumentService';
 import { IStorageService } from './StorageService';
 import { KnowledgeClient, Config } from 'coze-coding-dev-sdk';
 import { DailyPlanActivity } from '@/core/schemas/plan.schema';
+import { toErrorMessage } from '@/lib/error-utils';
 
 /**
  * 日计划生成参数
@@ -42,6 +43,28 @@ export class DailyPlanService {
     'medium': '4~5岁',
     'large': '5~6岁',
   };
+
+  private readonly DAILY_PLAN_FIELDS: Array<keyof DailyPlanActivity> = [
+    '日期',
+    '入园签到',
+    '学习区',
+    '运动区',
+    '公共区域',
+    '班级区域',
+    '过渡环节',
+    '自主进餐',
+    '午睡',
+    '学习与发展',
+    '活动组织',
+    '指导与调整',
+    '观察与反思',
+    '童言稚语',
+    '经验梳理',
+    '区域活动材料',
+    '集体活动材料',
+    '户外活动材料',
+    '保育与安全材料提供',
+  ];
 
   constructor(
     aiService: IAIService,
@@ -105,16 +128,17 @@ export class DailyPlanService {
         });
         console.log('AI 生成完成');
 
-        // 使用 Zod Schema 验证
+        // 使用 Zod Schema 验证（字段可选，提升容错）
         const validatedActivity = DailyPlanActivitySchema.parse(activityData);
         console.log('数据验证通过');
 
-        // 合并数据（validatedActivity已经包含了日期）
-        const fillData: Record<string, any> = {
+        const normalizedActivity = this.normalizeDailyPlanActivity(validatedActivity, date, activity);
+
+        const fillData = DailyPlanSchema.parse({
           班级: classInfo,
           教师: teacher,
-          ...validatedActivity,
-        };
+          ...normalizedActivity,
+        });
 
         // 填充模板生成 Word 文档
         const docxBuffer = await this.documentService.generateDocx(template, fillData);
@@ -130,8 +154,8 @@ export class DailyPlanService {
         console.log('文件上传成功');
 
         downloadUrls.push(downloadUrl);
-      } catch (error: any) {
-        console.error(`生成第${i + 1}天日计划失败:`, error);
+      } catch (error: unknown) {
+        console.error(`生成第${i + 1}天日计划失败:`, toErrorMessage(error));
         // 继续生成其他天数的日计划
       }
     }
@@ -185,10 +209,36 @@ export class DailyPlanService {
 
       // 暂时返回空字符串
       return '';
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('知识库检索失败:', error);
       return '';
     }
+  }
+
+  /**
+   * 规范化日计划字段，确保模板占位符都有值
+   */
+  private normalizeDailyPlanActivity(
+    activityData: DailyPlanActivity,
+    date: string,
+    activityName: string
+  ): Record<string, string> {
+    const normalized: Record<string, string> = {};
+
+    for (const field of this.DAILY_PLAN_FIELDS) {
+      if (field === '日期') {
+        normalized[field] = date;
+        continue;
+      }
+      const value = activityData[field];
+      normalized[field] = typeof value === 'string' ? value.trim() : '';
+    }
+
+    if (!normalized['活动组织'] && activityName) {
+      normalized['活动组织'] = `以“${activityName}”为核心组织活动。`;
+    }
+
+    return normalized;
   }
 }
 

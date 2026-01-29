@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { WeeklyPlanAI, DailyPlanActivity } from '@/core/schemas/plan.schema';
+import { WeeklyPlanAI, DailyPlanActivity, DailyPlanActivitySchema } from '@/core/schemas/plan.schema';
 import { WeeklyPlanAISchema } from '@/core/schemas/plan.schema';
 import { promptRegistry } from '@/core/promptRegistry';
 import { ILLMProvider } from '@/core/providers/LLMProvider';
@@ -117,7 +117,7 @@ export class DoubaoAIService implements IAIService {
    */
   private async callProviderWithSchema<T>(
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    schema: z.ZodSchema<any>,
+    schema: z.ZodType<T>,
     temperature: number = 0.7
   ): Promise<T> {
     const content = await this.callProvider(messages, temperature);
@@ -174,16 +174,7 @@ export class DoubaoAIService implements IAIService {
       { role: 'user', content: prompt.userTemplate },
     ];
 
-    const result = await this.callProviderWithSchema(messages, z.object({
-      日期: z.string(),
-      早餐: z.string(),
-      晨间活动: z.string(),
-      集体活动: z.string(),
-      午餐: z.string(),
-      午休: z.string(),
-      午点: z.string(),
-      离园活动: z.string(),
-    }));
+    const result = await this.callProviderWithSchema(messages, DailyPlanActivitySchema);
 
     return result as DailyPlanActivity;
   }

@@ -10,7 +10,7 @@ interface BasicInfoFormProps {
 }
 
 export function BasicInfoForm({ formData, setFormData, dateRange }: BasicInfoFormProps) {
-    const updateField = (field: keyof WeeklyPlanFormData, value: any) => {
+    const updateField = <K extends keyof WeeklyPlanFormData>(field: K, value: WeeklyPlanFormData[K]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -34,7 +34,10 @@ export function BasicInfoForm({ formData, setFormData, dateRange }: BasicInfoFor
                 {/* 年龄段 */}
                 <div className="space-y-1.5">
                     <Label htmlFor="ageGroup" className="text-xs sm:text-sm font-medium">年龄段</Label>
-                    <Select value={formData.ageGroup} onValueChange={(val) => updateField('ageGroup', val)}>
+                    <Select
+                        value={formData.ageGroup}
+                        onValueChange={(val) => updateField('ageGroup', val as WeeklyPlanFormData['ageGroup'])}
+                    >
                         <SelectTrigger className="h-9 sm:h-9 w-full text-xs sm:text-sm">
                             <SelectValue placeholder="选择" />
                         </SelectTrigger>

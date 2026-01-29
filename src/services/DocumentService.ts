@@ -2,6 +2,7 @@ import * as mammoth from 'mammoth';
 import { createReport } from 'docx-templates';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { toErrorMessage } from '@/lib/error-utils';
 
 /**
  * 文档服务接口
@@ -18,7 +19,7 @@ export interface IDocumentService {
    * @param data 填充数据
    * @returns 生成的 Word 文档 Buffer
    */
-  generateDocx(template: string | Uint8Array, data: Record<string, any>): Promise<Buffer>;
+  generateDocx(template: string | Uint8Array, data: Record<string, string>): Promise<Buffer>;
 
   /**
    * 获取默认模板
@@ -64,7 +65,7 @@ export class DocumentService implements IDocumentService {
       }
 
       return text;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('解析Word文件失败:', error);
       throw new Error('解析Word文件失败，请检查文件格式是否正确');
     }
@@ -73,7 +74,7 @@ export class DocumentService implements IDocumentService {
   /**
    * 生成 Word 文档
    */
-  async generateDocx(template: string | Uint8Array, data: Record<string, any>): Promise<Buffer> {
+  async generateDocx(template: string | Uint8Array, data: Record<string, string>): Promise<Buffer> {
     try {
       // 将 template 转换为 Uint8Array
       const templateUint8Array = typeof template === 'string'
@@ -89,9 +90,9 @@ export class DocumentService implements IDocumentService {
       // createReport 返回的是 Uint8Array
       // 转换为 Buffer
       return Buffer.from(report);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('生成Word文档失败:', error);
-      throw new Error(`生成Word文档失败: ${error.message}`);
+      throw new Error(`生成Word文档失败: ${toErrorMessage(error)}`);
     }
   }
 
@@ -105,7 +106,7 @@ export class DocumentService implements IDocumentService {
       const template = readFileSync(templatePath);
       console.log('使用默认模板:', templatePath);
       return new Uint8Array(template);
-    } catch (e) {
+    } catch (e: unknown) {
       console.log('默认模板不存在，需要上传模板文件');
       throw new Error(`默认模板 ${templateName} 不存在，请上传模板文件`);
     }

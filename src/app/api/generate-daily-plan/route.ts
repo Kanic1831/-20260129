@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { limiter } from '@/lib/concurrency-control';
 import { createDailyPlanService } from '@/services/DailyPlanService';
+import { toErrorStatus } from '@/lib/error-utils';
 import { z } from 'zod';
 
 /**
@@ -74,15 +75,15 @@ export async function POST(req: NextRequest) {
         total: result.total,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('生成日计划失败:', error);
 
       // 返回用户友好的错误信息
-      const errorMessage = error.message || '生成日计划失败，请重试';
+      const errorMessage = error instanceof Error ? error.message : '生成日计划失败，请重试';
 
       return NextResponse.json(
         { error: errorMessage },
-        { status: error.status || 500 }
+        { status: toErrorStatus(error) }
       );
     }
   });

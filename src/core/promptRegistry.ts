@@ -26,7 +26,7 @@ export interface PromptTemplate {
  * 负责加载外部 Prompt 文件并提供变量替换功能
  */
 export class PromptRegistry {
-  private static instance: PromptRegistry;
+  private static instance: PromptRegistry | null = null;
   private cache: Map<string, PromptTemplate> = new Map();
   private promptsDir: string;
 
@@ -83,7 +83,7 @@ export class PromptRegistry {
    * @param variables 变量值对象
    * @returns 替换后的 Prompt
    */
-  replaceVariables(template: string, variables: Record<string, any>): string {
+  replaceVariables(template: string, variables: Record<string, unknown>): string {
     let result = template;
 
     // 替换 {{variableName}} 格式的变量
@@ -92,11 +92,11 @@ export class PromptRegistry {
       result = result.replace(regex, String(value ?? ''));
     }
 
+    // 替换条件语句（支持 else 和简单比较）
+    result = this.replaceConditionals(result, variables);
+
     // 移除未定义的变量
     result = result.replace(/{{\w+}}/g, '');
-
-    // 替换 {% if variableName %}...{% endif %} 格式的条件语句
-    result = this.replaceConditionals(result, variables);
 
     return result;
   }
@@ -107,22 +107,66 @@ export class PromptRegistry {
    * @param variables 变量值对象
    * @returns 替换后的内容
    */
-  private replaceConditionals(template: string, variables: Record<string, any>): string {
+  private replaceConditionals(template: string, variables: Record<string, unknown>): string {
     let result = template;
 
-    // 匹配 {% if variableName %}...{% endif %} 格式
-    const conditionalRegex = /{%\s*if\s+(\w+)\s*%}([\s\S]*?){%\s*endif\s*%}/g;
+    // 匹配 {% if ... %}...{% else %}...{% endif %} 和无 else 的情况
+    const conditionalRegex =
+      /{%\s*if\s+([^%]+?)\s*%}([\s\S]*?)(?:{%\s*else\s*%}([\s\S]*?))?{%\s*endif\s*%}/g;
 
-    result = result.replace(conditionalRegex, (match, variableName, content) => {
-      const value = variables[variableName];
-      // 如果变量存在且为真，则保留内容；否则移除
-      if (value !== undefined && value !== null && value !== '' && value !== false) {
-        return content;
+    const evaluateCondition = (condition: string): boolean => {
+      const trimmed = condition.trim();
+      const comparisonMatch = trimmed.match(/^(\w+)\s*(==|!=)\s*(.+)$/);
+      if (comparisonMatch) {
+        const [, varName, operator, rawValue] = comparisonMatch;
+        const expected = this.parseLiteral(rawValue.trim());
+        const actual = variables[varName];
+
+        if (expected === true || expected === false) {
+          const actualBool = actual === true || actual === 'true';
+          return operator === '==' ? actualBool === expected : actualBool !== expected;
+        }
+
+        const actualStr = actual === undefined || actual === null ? '' : String(actual);
+        const expectedStr = expected === undefined || expected === null ? '' : String(expected);
+        return operator === '==' ? actualStr === expectedStr : actualStr !== expectedStr;
       }
-      return '';
-    });
+
+      const value = variables[trimmed];
+      if (value === 'false') {
+        return false;
+      }
+      return Boolean(value);
+    };
+
+    const apply = (input: string): string =>
+      input.replace(
+        conditionalRegex,
+        (_match, condition, truthyContent, falsyContent) => {
+          return evaluateCondition(condition) ? truthyContent : (falsyContent ?? '');
+        }
+      );
+
+    let prev: string | null = null;
+    while (prev !== result) {
+      prev = result;
+      result = apply(result);
+    }
 
     return result;
+  }
+
+  private parseLiteral(value: string): string | boolean | null {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      return value.slice(1, -1);
+    }
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    if (value === 'null') return null;
+    return value;
   }
 
   /**
@@ -131,11 +175,11 @@ export class PromptRegistry {
    * @param variables 变量值对象
    * @returns 替换后的 Prompt 对象
    */
-  get(name: string, variables: Record<string, any> = {}): Omit<PromptTemplate, 'variables'> {
+  get(name: string, variables: Record<string, unknown> = {}): Omit<PromptTemplate, 'variables'> {
     const template = this.load(name);
 
     return {
-      systemPrompt: template.systemPrompt,
+      systemPrompt: this.replaceVariables(template.systemPrompt, variables),
       userTemplate: this.replaceVariables(template.userTemplate, variables),
       fields: template.fields,
     };

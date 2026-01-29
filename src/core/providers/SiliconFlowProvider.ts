@@ -63,9 +63,10 @@ export class SiliconFlowProvider implements ILLMProvider {
 
                 clearTimeout(timeoutId);
                 return response;
-            } catch (error: any) {
-                lastError = error;
-                console.warn(`SiliconFlow API 请求失败 (尝试 ${attempt}/${retries}):`, error.message);
+            } catch (error: unknown) {
+                lastError = error instanceof Error ? error : new Error('未知错误');
+                const message = error instanceof Error ? error.message : String(error);
+                console.warn(`SiliconFlow API 请求失败 (尝试 ${attempt}/${retries}):`, message);
 
                 // 如果是最后一次尝试，不再等待
                 if (attempt < retries) {

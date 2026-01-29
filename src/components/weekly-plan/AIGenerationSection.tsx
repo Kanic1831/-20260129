@@ -10,7 +10,7 @@ interface AIGenerationSectionProps {
 }
 
 export function AIGenerationSection({ formData, setFormData }: AIGenerationSectionProps) {
-    const updateField = (field: keyof WeeklyPlanFormData, value: any) => {
+    const updateField = <K extends keyof WeeklyPlanFormData>(field: K, value: WeeklyPlanFormData[K]) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 

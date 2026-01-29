@@ -123,8 +123,11 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
 
         try {
             const json = JSONUtils.repairAndParse(content);
-            if (json && json[fieldName]) {
-                return json[fieldName];
+            if (typeof json === 'object' && json !== null && fieldName in json) {
+                const value = (json as Record<string, unknown>)[fieldName];
+                if (typeof value === 'string') {
+                    return value;
+                }
             }
         } catch (error) {
             // 忽略解析错误
@@ -179,19 +182,24 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
             if (!reader) throw new Error('无法读取响应流');
 
             let fullContent = '';
+            let buffer = '';
+            let streamEnded = false;
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
+                    const trimmedLine = line.trimEnd();
+                    if (trimmedLine.startsWith('data: ')) {
+                        const data = trimmedLine.slice(6);
                         if (data === '[DONE]') {
                             setStreaming(prev => ({ ...prev, isStreaming: false }));
+                            streamEnded = true;
                             break;
                         }
 
@@ -200,6 +208,7 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
                             if (parsed.error) {
                                 setError(parsed.error);
                                 setStreaming(prev => ({ ...prev, isStreaming: false }));
+                                streamEnded = true;
                                 break;
                             }
 
@@ -220,11 +229,15 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
                         }
                     }
                 }
+
+                if (streamEnded) {
+                    break;
+                }
             }
 
             if (!fullContent) throw new Error('未收到有效的 AI 生成内容');
 
-            let aiData: any;
+            let aiData: unknown;
             try {
                 aiData = JSONUtils.repairAndParse(fullContent);
                 setStreaming(prev => ({
@@ -281,8 +294,9 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
                 weekNumber: formData.weekNumber,
             });
 
-        } catch (err: any) {
-            setError(err.message || '流式生成失败，请重试');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '流式生成失败，请重试';
+            setError(message);
             setStreaming(prev => ({ ...prev, isStreaming: false }));
         }
     };
@@ -355,8 +369,9 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
                 setActivitiesList(activities);
                 setDailyPlan(prev => ({ ...prev, editingActivities: [...activities] }));
             }
-        } catch (err: any) {
-            setError(err.message || '生成失败，请重试');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '生成失败，请重试';
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -442,8 +457,9 @@ export function useWeeklyPlan(): UseWeeklyPlanReturn {
 
             const data = await response.json();
             setDailyPlan(prev => ({ ...prev, urls: data.downloadUrls || [] }));
-        } catch (err: any) {
-            setError(err.message || '生成日计划失败，请重试');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '生成日计划失败，请重试';
+            setError(message);
         } finally {
             setDailyPlan(prev => ({ ...prev, loading: false }));
         }

@@ -128,6 +128,22 @@ describe('PromptRegistry', () => {
       const result = registry.replaceVariables(template, { show: true });
       expect(result).toBe('Start Middle End');
     });
+
+    it('should handle else branches', () => {
+      const template = '{% if show %}Visible{% else %}Hidden{% endif %}';
+      const resultTrue = registry.replaceVariables(template, { show: true });
+      const resultFalse = registry.replaceVariables(template, { show: false });
+      expect(resultTrue).toBe('Visible');
+      expect(resultFalse).toBe('Hidden');
+    });
+
+    it('should handle equality comparisons', () => {
+      const template = '{% if flag == \"true\" %}Yes{% else %}No{% endif %}';
+      const resultTrue = registry.replaceVariables(template, { flag: 'true' });
+      const resultFalse = registry.replaceVariables(template, { flag: 'false' });
+      expect(resultTrue).toBe('Yes');
+      expect(resultFalse).toBe('No');
+    });
   });
 
   describe('get', () => {
